@@ -55,3 +55,18 @@ To manually tune the robot's PID loops in real-time:
 4. Open `http://localhost:5173/tuning_gui.html` and click **Connect**.
 5. Keep the robot perfectly upright and adjust the **Pitch Offset** until the Live Pitch reads `0.0`.
 6. Press **Spacebar** to toggle balancing mode.
+
+## 🔖 Version History & Rollback
+
+| Tag | Description |
+|-----|-------------|
+| `v1.0-single-core` | Last known working single-core firmware. All FOC, IMU, balance PID, serial, and Bluetooth run in a single `loop()` on Core 1. |
+
+**To revert to the single-core firmware if the dual-core refactor causes problems:**
+```bash
+git checkout v1.0-single-core -- esp32_firmware/src/
+```
+Then re-flash via PlatformIO. To undo the revert and return to the latest code:
+```bash
+git checkout main -- esp32_firmware/src/
+```

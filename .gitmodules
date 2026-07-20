@@ -1,0 +1,3 @@
+[submodule "reference_robomates_firmware"]
+	path = reference_robomates_firmware
+	url = https://github.com/art-rbmates/robomates-firmware

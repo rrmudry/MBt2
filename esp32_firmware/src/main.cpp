@@ -4,6 +4,9 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Bluepad32.h>
+#include <Preferences.h>
+
+Preferences prefs;
 
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
 
@@ -109,6 +112,11 @@ void onBalanceToggle(char* cmd) {
     portENTER_CRITICAL(&stateMux);
     shared.request_balance_toggle = true;
     portEXIT_CRITICAL(&stateMux);
+}
+
+void onRecalibrate(char* cmd) {
+    Serial.println("Clearing calibration... Please reboot the ESP32.");
+    prefs.clear();
 }
 
 // ─── Balance Task (Core 1, Priority 5) ───
@@ -290,16 +298,31 @@ void setup() {
     motorRight.init();
 
     // Let SimpleFOC auto-calibrate the motors on startup for perfect torque symmetry!
-    motorLeft.voltage_sensor_align = 1.5f;
-    motorRight.voltage_sensor_align = 1.5f;
-    
-    // motorLeft.zero_electric_angle = 3.34;
-    // motorLeft.sensor_direction = Direction::CW;
-    motorLeft.initFOC();
-    
-    // motorRight.zero_electric_angle = 1.39;
-    // motorRight.sensor_direction = Direction::CW;
-    motorRight.initFOC();
+    prefs.begin("mbt2-calib", false);
+
+    if (prefs.isKey("m1_zero") && prefs.isKey("m2_zero")) {
+        Serial.println("Loading saved motor calibration...");
+        motorLeft.zero_electric_angle = prefs.getFloat("m1_zero");
+        motorLeft.sensor_direction = (Direction)prefs.getUChar("m1_dir");
+        motorRight.zero_electric_angle = prefs.getFloat("m2_zero");
+        motorRight.sensor_direction = (Direction)prefs.getUChar("m2_dir");
+        
+        motorLeft.initFOC();
+        motorRight.initFOC();
+    } else {
+        Serial.println("No saved calibration. Running alignment...");
+        motorLeft.voltage_sensor_align = 1.5f;
+        motorRight.voltage_sensor_align = 1.5f;
+        
+        motorLeft.initFOC();
+        motorRight.initFOC();
+        
+        Serial.println("Saving calibration to flash...");
+        prefs.putFloat("m1_zero", motorLeft.zero_electric_angle);
+        prefs.putUChar("m1_dir", motorLeft.sensor_direction);
+        prefs.putFloat("m2_zero", motorRight.zero_electric_angle);
+        prefs.putUChar("m2_dir", motorRight.sensor_direction);
+    }
 
     motorLeft.target = 0;
     motorRight.target = 0;
@@ -312,6 +335,7 @@ void setup() {
     commander.add('V', onPidVel, "PID Velocity");
     commander.add('S', onStreamToggle, "Toggle Diagnostic Stream");
     commander.add('O', onPitchOffset, "Pitch Offset (deg)");
+    commander.add('C', onRecalibrate, "Clear Calibration & Reboot");
 
     Serial.println("System Ready.");
     Serial.println("Type 'L5' to spin left motor at 5 rad/s");

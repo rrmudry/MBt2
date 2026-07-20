@@ -415,4 +415,5 @@
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32/include/hid_usage.h \
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoConsole.h \
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoGamepad.h \
- /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoGamepadProperties.h
+ /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoGamepadProperties.h \
+ /home/ryan/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h

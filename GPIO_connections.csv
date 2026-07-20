@@ -1,0 +1,13 @@
+ESP32 GPIO,Target Component,Component Pin,Signal Type
+D21,Left Encoder (AS5600) & MPU6050 IMU,SDA,I2C (Wire)
+D22,Left Encoder (AS5600) & MPU6050 IMU,SCL,I2C (Wire)
+D18,Right Encoder (AS5600),SDA,I2C (Wire1)
+D19,Right Encoder (AS5600),SCL,I2C (Wire1)
+D32,Left Motor Driver (SimpleFOC),IN1 / PWM_A,PWM Out
+D33,Left Motor Driver (SimpleFOC),IN2 / PWM_B,PWM Out
+D14,Left Motor Driver (SimpleFOC),IN3 / PWM_C,PWM Out
+D13,Left Motor Driver (SimpleFOC),EN / Enable,Digital Out
+D25,Right Motor Driver (SimpleFOC),IN1 / PWM_A,PWM Out
+D26,Right Motor Driver (SimpleFOC),IN2 / PWM_B,PWM Out
+D27,Right Motor Driver (SimpleFOC),IN3 / PWM_C,PWM Out
+D12,Right Motor Driver (SimpleFOC),EN / Enable,Digital Out

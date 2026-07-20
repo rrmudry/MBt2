@@ -61,16 +61,30 @@ LowPassFilter lpf_pitch_cmd{.Tf = 0.07};
 LowPassFilter lpf_throttle{.Tf = 0.5};
 LowPassFilter lpf_steering{.Tf = 0.1};
 
-float throttle = 0;
-float steering = 0;
-bool balancing_enabled = false;
+// ─── Shared State (accessed by both balanceTask and loop()) ───
+// Protected by a hardware spinlock for safe cross-priority access on Core 1.
+static portMUX_TYPE stateMux = portMUX_INITIALIZER_UNLOCKED;
 
-float current_pitch = 0.0f;
-unsigned long lastImuTime = 0;
+struct SharedState {
+    // Inputs: written by loop(), read by balanceTask
+    float throttle = 0;
+    float steering = 0;
+    float pitch_offset = 0;
+    bool request_balance_toggle = false;
 
-float pitch_offset = 0.0f * DEG_TO_RAD; // Start with measured offset from user
+    // Outputs: written by balanceTask, read by loop()
+    float current_pitch = 0;
+    float vel_left = 0;
+    float vel_right = 0;
+    float accel_x = 0;
+    float accel_y = 0;
+    float accel_z = 0;
+    bool balancing_enabled = false;
 
-bool diagnostic_stream = false;
+    // Bidirectional flag
+    bool diagnostic_stream = false;
+};
+static SharedState shared;
 
 // ─── SimpleFOC Commander ───
 Commander commander = Commander(Serial);
@@ -78,22 +92,144 @@ void onMotorLeft(char* cmd) { commander.motor(&motorLeft, cmd); }
 void onMotorRight(char* cmd) { commander.motor(&motorRight, cmd); }
 void onPidStab(char* cmd) { commander.pid(&pid_stb, cmd); }
 void onPidVel(char* cmd) { commander.pid(&pid_vel, cmd); }
-void onPitchOffset(char* cmd) { pitch_offset = atof(cmd) * DEG_TO_RAD; }
-void onStreamToggle(char* cmd) { diagnostic_stream = !diagnostic_stream; }
-void onBalanceToggle(char* cmd) { 
-    balancing_enabled = !balancing_enabled; 
-    if (balancing_enabled) {
-        pid_stb.reset();
-        pid_vel.reset();
-        motorLeft.controller = MotionControlType::torque;
-        motorRight.controller = MotionControlType::torque;
-        Serial.println("Balancing ON (Torque Mode)");
-    } else {
-        motorLeft.controller = MotionControlType::velocity;
-        motorRight.controller = MotionControlType::velocity;
-        motorLeft.target = 0;
-        motorRight.target = 0;
-        Serial.println("Balancing OFF (Velocity Mode)");
+
+void onPitchOffset(char* cmd) {
+    portENTER_CRITICAL(&stateMux);
+    shared.pitch_offset = atof(cmd) * DEG_TO_RAD;
+    portEXIT_CRITICAL(&stateMux);
+}
+
+void onStreamToggle(char* cmd) {
+    portENTER_CRITICAL(&stateMux);
+    shared.diagnostic_stream = !shared.diagnostic_stream;
+    portEXIT_CRITICAL(&stateMux);
+}
+
+void onBalanceToggle(char* cmd) {
+    portENTER_CRITICAL(&stateMux);
+    shared.request_balance_toggle = true;
+    portEXIT_CRITICAL(&stateMux);
+}
+
+// ─── Balance Task (Core 1, Priority 5) ───
+// Runs FOC, IMU, complementary filter, auto-enable, and balance PID.
+// This task preempts loop() and is never starved by serial or Bluetooth work.
+void balanceTask(void* parameter) {
+    Serial.println("Balance task started on Core 1 (priority 5)");
+
+    unsigned long lastImuTime = 0;
+    float current_pitch_local = 0.0f;
+    unsigned long upright_time = 0;
+    bool balancing_local = false;
+
+    while (true) {
+        // ── 1. Read shared inputs ──
+        portENTER_CRITICAL(&stateMux);
+        float throttle_local = shared.throttle;
+        float steering_local = shared.steering;
+        float offset_local = shared.pitch_offset;
+        bool toggle_requested = shared.request_balance_toggle;
+        shared.request_balance_toggle = false;
+        portEXIT_CRITICAL(&stateMux);
+
+        // ── 2. Handle balance toggle request from loop() ──
+        if (toggle_requested) {
+            balancing_local = !balancing_local;
+            if (balancing_local) {
+                pid_stb.reset();
+                pid_vel.reset();
+                motorLeft.controller = MotionControlType::torque;
+                motorRight.controller = MotionControlType::torque;
+                Serial.println("Balancing ON (Torque Mode)");
+            } else {
+                motorLeft.controller = MotionControlType::velocity;
+                motorRight.controller = MotionControlType::velocity;
+                motorLeft.target = 0;
+                motorRight.target = 0;
+                Serial.println("Balancing OFF (Velocity Mode)");
+            }
+        }
+
+        // ── 3. Run FOC (as fast as possible) ──
+        motorLeft.loopFOC();
+        motorRight.loopFOC();
+        motorLeft.move();
+        motorRight.move();
+
+        // ── 4. 100Hz IMU & Balance Control Loop ──
+        unsigned long now = millis();
+        if (now - lastImuTime >= 10) {
+            lastImuTime = now;
+
+            sensors_event_t a, g, temp;
+            float ax = 0, ay = 0, az = 0;
+            if (mpuInitialized) {
+                mpu.getEvent(&a, &g, &temp);
+                ax = a.acceleration.x;
+                ay = a.acceleration.y;
+                az = a.acceleration.z;
+            }
+
+            // Pitch Calculation (Complementary Filter — runs ALWAYS at 100Hz)
+            if (mpuInitialized) {
+                float accel_pitch = atan2(-ax, sqrt(ay * ay + az * az));
+                // 98% Gyro, 2% Accelerometer. dt is exactly 0.01s (100Hz).
+                current_pitch_local = 0.98f * (current_pitch_local + g.gyro.y * 0.01f) + 0.02f * accel_pitch;
+            }
+            float adjusted_pitch = current_pitch_local - offset_local;
+
+            // Auto-Enable Logic
+            if (!balancing_local && mpuInitialized) {
+                if (abs(adjusted_pitch) < 3.0f * DEG_TO_RAD) {
+                    if (upright_time == 0) upright_time = now;
+                    else if (now - upright_time > 1000) {
+                        balancing_local = true;
+                        pid_stb.reset();
+                        pid_vel.reset();
+                        motorLeft.controller = MotionControlType::torque;
+                        motorRight.controller = MotionControlType::torque;
+                        Serial.println("Auto-Balancing ENGAGED!");
+                        upright_time = 0;
+                    }
+                } else {
+                    upright_time = 0;
+                }
+            }
+
+            // Balancing Logic
+            if (balancing_local && mpuInitialized) {
+                // Safety Cutoff
+                if (adjusted_pitch > (45.0f * DEG_TO_RAD) || adjusted_pitch < (-45.0f * DEG_TO_RAD)) {
+                    motorLeft.target = 0;
+                    motorRight.target = 0;
+                    balancing_local = false;
+                    motorLeft.controller = MotionControlType::velocity;
+                    motorRight.controller = MotionControlType::velocity;
+                    Serial.println("Safety cut-off! Balancing disabled.");
+                } else {
+                    float velocity_avg = (motorLeft.shaft_velocity + (-motorRight.shaft_velocity)) / 2.0f;
+                    float target_pitch = lpf_pitch_cmd(pid_vel(lpf_throttle(throttle_local) - velocity_avg));
+                    float voltage_control = pid_stb(adjusted_pitch - target_pitch);
+                    float steering_adj = lpf_steering(steering_local);
+
+                    motorLeft.target = voltage_control + steering_adj;
+                    motorRight.target = -(voltage_control - steering_adj);
+                }
+            }
+
+            // ── 5. Write shared outputs ──
+            portENTER_CRITICAL(&stateMux);
+            shared.current_pitch = current_pitch_local;
+            shared.vel_left = motorLeft.shaft_velocity;
+            shared.vel_right = -motorRight.shaft_velocity;
+            shared.accel_x = ax;
+            shared.accel_y = ay;
+            shared.accel_z = az;
+            shared.balancing_enabled = balancing_local;
+            portEXIT_CRITICAL(&stateMux);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1)); // Yield to lower-priority tasks
     }
 }
 
@@ -180,13 +316,32 @@ void setup() {
     Serial.println("System Ready.");
     Serial.println("Type 'L5' to spin left motor at 5 rad/s");
     Serial.println("Type 'B' to toggle Balancing");
+
+    // ─── Launch Balance Task on Core 1 at Priority 5 ───
+    // This runs FOC + IMU + PID at the highest user-level priority.
+    // Arduino loop() continues on Core 1 at priority 1 for serial/BT/diagnostics.
+    BaseType_t res = xTaskCreatePinnedToCore(
+        balanceTask,       // Task function
+        "BalanceControl",  // Task name
+        8192,              // Stack size (8KB)
+        NULL,              // Parameters
+        5,                 // Priority (highest user task)
+        NULL,              // Task handle
+        1                  // Core 1
+    );
+    if (res != pdPASS) {
+        Serial.println("CRITICAL: Failed to create balance task!");
+    }
 }
 
 void loop() {
-    commander.run(); // Extremely lightweight serial listener
+    // ── Serial Commander (lightweight serial listener) ──
+    commander.run();
     
-    // Update Gamepads
+    // ── Update Gamepads ──
     BP32.update();
+    float throttle_val = 0;
+    float steering_val = 0;
     if (myControllers[0] && myControllers[0]->isConnected()) {
         float joy_y = -myControllers[0]->axisY() / 512.0f; 
         float joy_x = -myControllers[0]->axisX() / 512.0f; // Inverted
@@ -194,95 +349,34 @@ void loop() {
         if (abs(joy_y) < 0.1f) joy_y = 0;
         if (abs(joy_x) < 0.1f) joy_x = 0;
         
-        throttle = joy_y * 10.0f; 
-        steering = joy_x * 1.5f;  // Reduced sensitivity
-    } else {
-        throttle = 0;
-        steering = 0;
+        throttle_val = joy_y * 10.0f; 
+        steering_val = joy_x * 1.5f;  // Reduced sensitivity
     }
 
-    motorLeft.loopFOC();
-    motorRight.loopFOC();
-    motorLeft.move();
-    motorRight.move();
+    // Write gamepad inputs to shared state
+    portENTER_CRITICAL(&stateMux);
+    shared.throttle = throttle_val;
+    shared.steering = steering_val;
+    portEXIT_CRITICAL(&stateMux);
 
-    // ─── 100Hz IMU & Control Loop ───
-    unsigned long now = millis();
-    if (now - lastImuTime >= 10) { 
-        lastImuTime = now;
-        sensors_event_t a, g, temp;
-        if (mpuInitialized) {
-            mpu.getEvent(&a, &g, &temp);
-        }
-        
-        // Stream diagnostic data
-        if (diagnostic_stream) {
-            Serial.print("DATA,");
-            Serial.print(now); Serial.print(",");
-            Serial.print(motorLeft.shaft_velocity, 2); Serial.print(",");
-            Serial.print(-motorRight.shaft_velocity, 2); Serial.print(",");
-            Serial.print(a.acceleration.x, 2); Serial.print(",");
-            Serial.print(a.acceleration.y, 2); Serial.print(",");
-            Serial.println(a.acceleration.z, 2);
-        }
+    // ── Diagnostic Streaming (reads shared state, no longer blocks FOC) ──
+    // Check diagnostic_stream without lock — a torn bool read is harmless here
+    if (shared.diagnostic_stream) {
+        portENTER_CRITICAL(&stateMux);
+        float vl = shared.vel_left;
+        float vr = shared.vel_right;
+        float ax = shared.accel_x;
+        float ay = shared.accel_y;
+        float az = shared.accel_z;
+        portEXIT_CRITICAL(&stateMux);
 
-        // ─── Pitch Calculation (Runs ALWAYS at 100Hz) ───
-        if (mpuInitialized) {
-            float accel_pitch = atan2(-a.acceleration.x, sqrt(a.acceleration.y * a.acceleration.y + a.acceleration.z * a.acceleration.z));
-            // Complementary filter: 98% Gyro, 2% Accelerometer
-            // dt is exactly 0.01s (100Hz).
-            current_pitch = 0.98f * (current_pitch + g.gyro.y * 0.01f) + 0.02f * accel_pitch;
-        }
-        float adjusted_pitch = current_pitch - pitch_offset;
-
-        // ─── Auto-Enable Logic ───
-        static unsigned long upright_time = 0;
-        if (!balancing_enabled && mpuInitialized) {
-            if (abs(adjusted_pitch) < 3.0f * DEG_TO_RAD) { // Held within 3 degrees of perfect balance
-                if (upright_time == 0) upright_time = now;
-                else if (now - upright_time > 1000) { // Must hold it steady for 1 full second
-                    balancing_enabled = true;
-                    pid_stb.reset();
-                    pid_vel.reset();
-                    motorLeft.controller = MotionControlType::torque;
-                    motorRight.controller = MotionControlType::torque;
-                    Serial.println("Auto-Balancing ENGAGED!");
-                    upright_time = 0;
-                }
-            } else {
-                upright_time = 0;
-            }
-        }
-
-        // ─── Balancing Logic (Strict Reference Implementation) ───
-        if (balancing_enabled && mpuInitialized) {
-            // Safety Cutoff
-            if (adjusted_pitch > (45.0f * DEG_TO_RAD) || adjusted_pitch < (-45.0f * DEG_TO_RAD)) {
-                motorLeft.target = 0;
-                motorRight.target = 0;
-                balancing_enabled = false;
-                motorLeft.controller = MotionControlType::velocity;
-                motorRight.controller = MotionControlType::velocity;
-                Serial.println("Safety cut-off! Balancing disabled.");
-            } else {
-                // Velocity is positive when moving forward
-                // motorRight needs its velocity negated because +target moves it backward physically
-                float velocity_avg = (motorLeft.shaft_velocity + (-motorRight.shaft_velocity)) / 2.0f;
-                
-                // If moving forward (+vel), we must lean backward (-pitch) to slow down. 
-                // So error is (throttle - velocity)
-                float target_pitch = lpf_pitch_cmd(pid_vel(lpf_throttle(throttle) - velocity_avg));
-                
-                // If leaning forward (+pitch), we must accelerate forward (+voltage) to catch it.
-                // So error is (pitch - target)
-                float voltage_control = pid_stb(adjusted_pitch - target_pitch);
-                
-                float steering_adj = lpf_steering(steering);
-
-                // motorRight is negated to match the physical forward direction
-                motorLeft.target = voltage_control + steering_adj;
-                motorRight.target = -(voltage_control - steering_adj);
-            }
-        }
+        unsigned long now = millis();
+        Serial.print("DATA,");
+        Serial.print(now); Serial.print(",");
+        Serial.print(vl, 2); Serial.print(",");
+        Serial.print(vr, 2); Serial.print(",");
+        Serial.print(ax, 2); Serial.print(",");
+        Serial.print(ay, 2); Serial.print(",");
+        Serial.println(az, 2);
     }
 }

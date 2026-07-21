@@ -169,18 +169,22 @@ void balanceTask(void* parameter) {
         if (now - lastImuTime >= 10) {
             lastImuTime = now;
 
-            sensors_event_t a, g, temp;
+            sensors_event_t a={}, g={}, temp={};
             float ax = 0, ay = 0, az = 0;
+            bool imu_success = false;
             if (mpuInitialized) {
-                mpu.getEvent(&a, &g, &temp);
-                ax = a.acceleration.x;
-                ay = a.acceleration.y;
-                az = a.acceleration.z;
+                imu_success = mpu.getEvent(&a, &g, &temp);
+                if (imu_success) {
+                    ax = a.acceleration.x;
+                    ay = a.acceleration.y;
+                    az = a.acceleration.z;
+                }
             }
 
             // Pitch Calculation (Complementary Filter — runs ALWAYS at 100Hz)
-            if (mpuInitialized) {
-                float accel_pitch = atan2(-ax, sqrt(ay * ay + az * az));
+            if (imu_success) {
+                // Preserve the sign of Z to differentiate between upright and upside-down
+                float accel_pitch = atan2(-ax, copysign(sqrt(ay * ay + az * az), az));
                 // 98% Gyro, 2% Accelerometer. dt is exactly 0.01s (100Hz).
                 current_pitch_local = 0.98f * (current_pitch_local + g.gyro.y * 0.01f) + 0.02f * accel_pitch;
             }
@@ -207,12 +211,12 @@ void balanceTask(void* parameter) {
             // Balancing Logic
             if (balancing_local && mpuInitialized) {
                 // Safety Cutoff
-                if (adjusted_pitch > (45.0f * DEG_TO_RAD) || adjusted_pitch < (-45.0f * DEG_TO_RAD)) {
+                if (adjusted_pitch > (60.0f * DEG_TO_RAD) || adjusted_pitch < (-60.0f * DEG_TO_RAD)) {
                     motorLeft.target = 0;
                     motorRight.target = 0;
                     balancing_local = false;
-                    motorLeft.controller = MotionControlType::velocity;
-                    motorRight.controller = MotionControlType::velocity;
+                    motorLeft.controller = MotionControlType::torque;
+                    motorRight.controller = MotionControlType::torque;
                     Serial.println("Safety cut-off! Balancing disabled.");
                 } else {
                     float velocity_avg = (motorLeft.shaft_velocity + (-motorRight.shaft_velocity)) / 2.0f;
@@ -368,12 +372,12 @@ void loop() {
     float steering_val = 0;
     if (myControllers[0] && myControllers[0]->isConnected()) {
         float joy_y = -myControllers[0]->axisY() / 512.0f; 
-        float joy_x = -myControllers[0]->axisX() / 512.0f; // Inverted
+        float joy_x = -myControllers[0]->axisRX() / 512.0f; // Right stick X for steering
         
         if (abs(joy_y) < 0.1f) joy_y = 0;
         if (abs(joy_x) < 0.1f) joy_x = 0;
         
-        throttle_val = joy_y * 10.0f; 
+        throttle_val = joy_y * 20.0f; 
         steering_val = joy_x * 1.5f;  // Reduced sensitivity
     }
 

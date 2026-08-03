@@ -87,6 +87,8 @@ graph TD
 
 <div align="center">
 
+![Multiboard Bot 3D CAD Chassis](docs/images/chassis_3d.png)
+
 | 🧊 3D Chassis (Multiboard System) | ⚡ Custom PCB Carrier Board |
 | :---: | :---: |
 | [![Tinkercad](https://img.shields.io/badge/3D%20CAD-Multiboard%20Bot%20on%20Tinkercad-blue?style=for-the-badge&logo=autodesk)](https://www.tinkercad.com/things/8piVGKb7lwG-multiboard-bot-aka-multibot) | [📄 View PCB Drawings & Gerbers](PCB_Design/) |

@@ -11,6 +11,14 @@
 
 </div>
 
+<div align="center">
+
+[![Watch the Video](https://img.youtube.com/vi/mh7uXmJ1fcI/maxresdefault.jpg)](https://youtu.be/mh7uXmJ1fcI)
+
+▶️ **Watch MBt2 in Action**
+
+</div>
+
 ---
 
 ## 🌟 Overview

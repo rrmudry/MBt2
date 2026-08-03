@@ -204,6 +204,7 @@
  .pio/libdeps/esp32dev/Adafruit\ BusIO/Adafruit_SPIDevice.h \
  .pio/libdeps/esp32dev/Adafruit\ Unified\ Sensor/Adafruit_Sensor.h \
  /home/ryan/.platformio/packages/framework-arduinoespressif32/cores/esp32/Print.h \
+ .pio/libdeps/esp32dev/AS5600/AS5600.h \
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/Bluepad32.h \
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoBluepad32.h \
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoController.h \
@@ -416,4 +417,6 @@
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoConsole.h \
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoGamepad.h \
  /home/ryan/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bluepad32_arduino/include/ArduinoGamepadProperties.h \
- /home/ryan/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h
+ .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson.h \
+ .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson.hpp \
+ .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson/Configuration.hpp

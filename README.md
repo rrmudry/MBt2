@@ -59,17 +59,11 @@ It features a custom **FreeRTOS Dual-Core Architecture**, **Cascaded Dual-Loop P
 
 ## 🔌 Hardware Architecture & Pinout
 
-```mermaid
-graph TD
-    ESP[ESP32 DevKit V1] -->|I2C Bus 0: D21/D22 + Mutex| IMU[MPU6050 IMU]
-    ESP -->|I2C Bus 0: D21/D22 + Mutex| ENCL[Left AS5600 Encoder]
-    ESP -->|I2C Bus 1: D18/D19| ENCR[Right AS5600 Encoder]
-    ESP -->|PWM D32/D33/D14 + EN D13| DRVL[Left SimpleFOC Driver]
-    ESP -->|PWM D25/D26/D27 + EN D12| DRVR[Right SimpleFOC Driver]
-    DRVL --> MOTL[Left BLDC Motor]
-    DRVR --> MOTR[Right BLDC Motor]
-    BT[Bluetooth Gamepad] -.->|Bluepad32 Core 0| ESP
-```
+<div align="center">
+
+![MBt2 Carrier Board Hardware Layout](docs/images/pcb_layout.png)
+
+</div>
 
 ### Pin Mapping Table
 | Device | ESP32 Pin | Function / Protocol |

@@ -4,13 +4,29 @@ const express = require('express');
 const { WebSocketServer } = require('ws');
 const http = require('http');
 
+const path = require('path');
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+// Serve frontend dist files & diagnostic GUIs
+app.use(express.static(path.join(__dirname, 'dist')));
+app.get('/tuning_gui.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'tuning_gui.html'));
+});
+app.get('/imu_test_gui.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'imu_test_gui.html'));
+});
+app.get('/encoder_test_gui.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'encoder_test_gui.html'));
+});
+app.get('/motor_test_gui.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'motor_test_gui.html'));
+});
+
 // ─── Configuration ───
-// Use the Bluetooth SPP port created by 'sudo rfcomm bind 0 <MAC>'
-const PORT_NAME = process.env.PORT || '/dev/rfcomm0';
+const PORT_NAME = process.env.PORT || '/dev/ttyUSB0';
 const BAUD_RATE = 115200;
 const WS_PORT = 8080;
 

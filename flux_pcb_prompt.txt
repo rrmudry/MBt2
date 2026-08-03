@@ -1,0 +1,48 @@
+Design a 2-layer PCB carrier board for a self-balancing robot. The board acts as a shield/motherboard featuring female header sockets for an ESP32 DevKit V1, two SimpleFOC Mini brushless motor driver modules, an MPU6050 IMU module, and two AS5600 magnetic position encoder headers.
+
+### Component Sockets & Connectors:
+1. U1: ESP32 DevKit V1 (30-pin DIP socket, dual 1x15 female headers, 0.9" spacing).
+2. M1: SimpleFOC Mini Driver #1 (Left Motor Driver module socket).
+3. M2: SimpleFOC Mini Driver #2 (Right Motor Driver module socket).
+4. S1: MPU6050 IMU Module (1x4 or 1x6 pin header socket).
+5. E1: Left AS5600 Magnetic Encoder Connector (4-pin header: VCC, GND, SDA, SCL).
+6. E2: Right AS5600 Magnetic Encoder Connector (4-pin header: VCC, GND, SDA, SCL).
+7. J_PWR: Main Power Terminal Block (2-pin, 5.08mm screw terminal for 7V-12V DC input).
+8. J_MOT1: Left Motor Phase Terminal (3-pin, 3.5mm terminal block for U, V, W).
+9. J_MOT2: Right Motor Phase Terminal (3-pin, 3.5mm terminal block for U, V, W).
+
+### Detailed Net & GPIO Wiring:
+
+1. Power & Logic Supplies:
+   - Connect J_PWR Pin 1 (VM) to SimpleFOC Driver M1 V+ and Driver M2 V+.
+   - Connect J_PWR Pin 1 (VM) to ESP32 VIN (or onboard 5V regulator if VM > 7V).
+   - Connect ESP32 3V3 to S1 (MPU6050 VCC), E1 (Left Encoder VCC), and E2 (Right Encoder VCC).
+   - Connect J_PWR Pin 2, ESP32 GND, M1 GND, M2 GND, S1 GND, E1 GND, E2 GND to a unified GROUND net (GND).
+
+2. Left Motor Driver (M1 - SimpleFOC Mini #1):
+   - M1 IN1 (PWM_A) -> ESP32 GPIO D32
+   - M1 IN2 (PWM_B) -> ESP32 GPIO D33
+   - M1 IN3 (PWM_C) -> ESP32 GPIO D14
+   - M1 EN (Enable) -> ESP32 GPIO D13
+   - M1 Outputs (U, V, W) -> J_MOT1 Pins 1, 2, 3
+
+3. Right Motor Driver (M2 - SimpleFOC Mini #2):
+   - M2 IN1 (PWM_A) -> ESP32 GPIO D25
+   - M2 IN2 (PWM_B) -> ESP32 GPIO D26
+   - M2 IN3 (PWM_C) -> ESP32 GPIO D27
+   - M2 EN (Enable) -> ESP32 GPIO D12
+   - M2 Outputs (U, V, W) -> J_MOT2 Pins 1, 2, 3
+
+4. I2C Bus 0 (Shared between MPU6050 & Left Encoder E1):
+   - Net I2C_0_SDA: Connect ESP32 GPIO D21 -> S1 (MPU6050 SDA) -> E1 (Left Encoder SDA). Add 4.7kΩ pull-up resistor to 3V3.
+   - Net I2C_0_SCL: Connect ESP32 GPIO D22 -> S1 (MPU6050 SCL) -> E1 (Left Encoder SCL). Add 4.7kΩ pull-up resistor to 3V3.
+
+5. I2C Bus 1 (Dedicated Right Encoder E2):
+   - Net I2C_1_SDA: Connect ESP32 GPIO D18 -> E2 (Right Encoder SDA). Add 4.7kΩ pull-up resistor to 3V3.
+   - Net I2C_1_SCL: Connect ESP32 GPIO D19 -> E2 (Right Encoder SCL). Add 4.7kΩ pull-up resistor to 3V3.
+
+### Design Requirements & PCB Rules:
+- Include 100uF electrolytic bulk capacitors across VM and GND near each SimpleFOC Mini driver.
+- Add 0.1uF decoupling ceramic capacitors close to the VCC/GND pins of the ESP32, MPU6050, and encoders.
+- Use wide traces (minimum 1.5mm / 60mil) for VM power rails and motor output phase lines (U, V, W).
+- Place a continuous GND plane on both top and bottom layers.

@@ -12,14 +12,12 @@
       <aside class="sidebar">
         <div class="logo">MBt2 Control</div>
         <nav>
-          <a href="#" data-page="dashboard" class="active">Dashboard</a>
-          <a href="#" data-page="motors">Motors</a>
-          <a href="#" data-page="encoders">Encoders</a>
-          <a href="#" data-page="imu">IMU</a>
+          <a href="#" data-page="dashboard" class="active">Unified Dashboard</a>
         </nav>
         <div class="status-panel">
-          <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
-            <button id="connect-btn" style="padding: 10px; background: var(--primary-color); border: none; color: black; font-weight: bold; cursor: pointer; border-radius: 4px;">Connect USB Serial</button>
+          <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+            <button id="connect-ws-btn" style="padding: 10px; background: #00ffcc; border: none; color: black; font-weight: bold; cursor: pointer; border-radius: 4px;">⚡ Connect WebSocket (Server)</button>
+            <button id="connect-btn" style="padding: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-weight: 500; cursor: pointer; border-radius: 4px; font-size: 0.85rem;">🔌 Connect Web Serial</button>
             <button id="export-btn" style="padding: 8px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: var(--text-main); font-weight: 500; cursor: pointer; border-radius: 4px; font-size: 0.85rem; transition: all 0.2s ease;" onmouseover="this.style.background='rgba(102,252,241,0.15)'; this.style.color='var(--primary-color)'; this.style.borderColor='var(--primary-color)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'; this.style.color='var(--text-main)'; this.style.borderColor='rgba(255,255,255,0.15)'">⬇ Export Data</button>
             <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 5px;">
               <div class="status-indicator disconnected" id="connection-status"></div>

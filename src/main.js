@@ -1,8 +1,5 @@
 import './style.css';
 import { renderDashboard } from './components/dashboard.js';
-import { renderMotors } from './components/motors.js';
-import { renderEncoders } from './components/encoders.js';
-import { renderImu } from './components/imu.js';
 
 // App state
 const state = {
@@ -11,54 +8,86 @@ const state = {
 };
 
 const mainView = document.getElementById('main-view');
-const navLinks = document.querySelectorAll('nav a');
 const connStatus = document.getElementById('connection-status');
 const connText = document.getElementById('connection-text');
 
-// Navigation handler
-function setupNavigation() {
-  navLinks.forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      const page = e.target.getAttribute('data-page');
-      navigateTo(page);
-    });
-  });
-}
-
-function navigateTo(page) {
-  state.currentPage = page;
-  
-  // Update active state on nav
-  navLinks.forEach(link => {
-    if (link.getAttribute('data-page') === page) {
-      link.classList.add('active');
-    } else {
-      link.classList.remove('active');
-    }
-  });
-
-  // Render content
-  mainView.innerHTML = ''; // Clear current
-  mainView.style.opacity = '0';
-  
-  setTimeout(() => {
-    switch(page) {
-      case 'dashboard': renderDashboard(mainView, sendCommand); break;
-      case 'motors': renderMotors(mainView, sendCommand); break;
-      case 'encoders': renderEncoders(mainView, sendCommand); break;
-      case 'imu': renderImu(mainView); break;
-    }
-    
-    // Fade in
-    mainView.style.transition = 'opacity 0.3s ease';
-    mainView.style.opacity = '1';
-  }, 150);
+function navigateToDashboard() {
+  mainView.innerHTML = '';
+  renderDashboard(mainView, sendCommand);
 }
 
 const connectBtn = document.getElementById('connect-btn');
+const connectWsBtn = document.getElementById('connect-ws-btn');
 
-connectBtn.addEventListener('click', connectWebSerial);
+if (connectBtn) connectBtn.addEventListener('click', connectWebSerial);
+if (connectWsBtn) connectWsBtn.addEventListener('click', connectWebSocket);
+
+let ws = null;
+
+function connectWebSocket() {
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+  
+  connText.textContent = 'Connecting WS...';
+  ws = new WebSocket('ws://localhost:8080');
+
+  ws.onopen = () => {
+    connText.textContent = 'Connected (WebSocket)';
+    connStatus.classList.remove('disconnected');
+    connStatus.classList.add('connected');
+    state.connected = true;
+    state.mode = 'websocket';
+  };
+
+  ws.onmessage = (event) => {
+    const trimmed = event.data.trim();
+    if (trimmed.length === 0) return;
+    let data;
+    try {
+      data = JSON.parse(trimmed);
+    } catch (e) {
+      data = { type: 'log', level: 'raw', msg: trimmed, t: Date.now() };
+    }
+
+    // Buffer raw line
+    window.__serialRawLines.push({ ts: Date.now(), raw: trimmed });
+    if (window.__serialRawLines.length > MAX_RAW_LINES) window.__serialRawLines.shift();
+
+    // Buffer logs globally
+    if (data.type === 'log') {
+      window.__serialLogBuffer.push(data);
+      if (window.__serialLogBuffer.length > MAX_LOG_BUFFER) window.__serialLogBuffer.shift();
+    }
+
+    // Cache latest status globally
+    if (data.type === 'status') {
+      window.__lastStatus = data;
+    }
+
+    // Buffer telemetry
+    if (data.type === 'imu' || data.type === 'encoders') {
+      window.__telemetryBuffer.push({ ts: Date.now(), ...data });
+      if (window.__telemetryBuffer.length > MAX_TELEMETRY_BUFFER) window.__telemetryBuffer.shift();
+    }
+
+    const customEvent = new CustomEvent('ws-data', { detail: data });
+    window.dispatchEvent(customEvent);
+  };
+
+  ws.onclose = () => {
+    state.connected = false;
+    connStatus.classList.remove('connected');
+    connStatus.classList.add('disconnected');
+    connText.textContent = 'Disconnected';
+  };
+
+  ws.onerror = (err) => {
+    console.error('WebSocket Error:', err);
+    alert('Failed to connect to WebSocket server at ws://localhost:8080.\nMake sure "node tuning_server.cjs" is running in a terminal!');
+  };
+}
 
 // Web Serial connection
 let serialPort = null;
@@ -95,8 +124,19 @@ async function connectWebSerial() {
   }
 
   try {
-    serialPort = await navigator.serial.requestPort();
-    await serialPort.open({ baudRate: 230400 });
+    // Filter specifically for USB serial chips (CP210x, CH340, Espressif, FTDI) so Chrome ignores Bluetooth devices
+    serialPort = await navigator.serial.requestPort({
+      filters: [
+        { usbVendorId: 0x10c4 }, // Silicon Labs CP210x (ESP32 DevKit V1)
+        { usbVendorId: 0x1a86 }, // QinHeng / WCH CH340
+        { usbVendorId: 0x303a }, // Espressif Systems (ESP32-S2/S3/C3 Native USB)
+        { usbVendorId: 0x0403 }  // FTDI
+      ]
+    });
+    // Check if the selected port is not already open
+    if (!serialPort.readable) {
+      await serialPort.open({ baudRate: 115200 });
+    }
 
     // Toggle DTR/RTS to reset the ESP32 so it doesn't get stuck in bootloader or held in reset
     await serialPort.setSignals({ dataTerminalReady: false, requestToSend: false });
@@ -254,13 +294,18 @@ class LineBreakTransformer {
 }
 
 function sendCommand(command, data) {
-  if (!state.connected || !serialWriter) {
+  if (!state.connected) {
     console.warn('Not connected! Cannot send:', command, data);
     return;
   }
   const payload = JSON.stringify({ command, ...data }) + '\n';
-  console.log('Sending over Serial:', payload);
-  serialWriter.write(payload);
+  if (state.mode === 'websocket' && ws && ws.readyState === WebSocket.OPEN) {
+    console.log('Sending over WebSocket:', payload);
+    ws.send(payload);
+  } else if (serialWriter) {
+    console.log('Sending over Serial:', payload);
+    serialWriter.write(payload);
+  }
 
   // Track commands sent
   window.__commandsSent.push({ ts: Date.now(), command, ...data });
@@ -318,5 +363,4 @@ const exportBtn = document.getElementById('export-btn');
 if (exportBtn) exportBtn.addEventListener('click', exportData);
 
 // Initialize
-setupNavigation();
-navigateTo('dashboard');
+navigateToDashboard();

@@ -93,6 +93,18 @@ It features a custom **FreeRTOS Dual-Core Architecture**, **Cascaded Dual-Loop P
 - **3D CAD Model:** 👉 **[View & Edit Multiboard Bot on Tinkercad](https://www.tinkercad.com/things/8piVGKb7lwG-multiboard-bot-aka-multibot)**
 - **Hardware Gerber ZIP:** `PCB_Design/MBt2_PCB.zip` (1-click manufacturing order file)
 - **Schematic PDF:** `PCB_Design/MBt2_PCB.pdf`
+- **Bill of Materials:** 📋 [`PCB_Design/BOM_MBt2_Carrier_Board.csv`](PCB_Design/BOM_MBt2_Carrier_Board.csv)
+
+### 📋 Bill of Materials (BOM) Quick Summary
+| Component | Description | Qty | Target Reference |
+|---|---|---|---|
+| **ESP32 DevKit V1** | 30-Pin Dual-Core Microcontroller | 1 | `U1` |
+| **SimpleFOC Mini Driver** | 3-Phase BLDC Motor Driver | 2 | `L_Driver`, `R_Driver` |
+| **BLDC Gimbal Motor** | 11 Pole Pair Brushless Motor | 2 | Left & Right Wheels |
+| **AS5600 Magnetic Encoder** | 12-Bit Angle Sensor (I2C) | 2 | `L_Encoder`, `R_Encoder` |
+| **MPU6050 IMU** | 6-DOF Accelerometer & Gyroscope | 1 | `IMU` |
+| **5V Step-Up Boost Module** | 1S LiPo $\rightarrow$ 5V Regulator | 1 | `5V_Boost` |
+| **1S LiPo / 18650 Battery** | 3.7V High Discharge Battery | 1 | `1s_BAT` |
 
 ---
 

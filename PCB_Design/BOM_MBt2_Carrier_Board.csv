@@ -1,0 +1,10 @@
+Item #,Designator,Qty,Component Name,Description,Package/Footprint,Voltage / Logic Rating,Supplier / Part Link
+1,U1,1,ESP32 DevKit V1,ESP-WROOM-32 30-Pin Dual-Core Microcontroller,Header 15x2 2.54mm,3.3V Logic / 5V Vin,Generic ESP32 DevKit V1
+2,L_Driver R_Driver,2,SimpleFOC Mini Driver,3-Phase BLDC Driver Board (DRV8313/L6234),Header 1x5 2.54mm,8-12V Power / 3.3V PWM,SimpleFOC Shop / AliExpress
+3,MOT_L MOT_R,2,BLDC Brushless Motor,11 Pole Pair Low-KV Brushless Gimbal Motor,3-Phase Wire Terminal,12V Nominal,Generic Gimbal Motor
+4,L_Encoder R_Encoder,2,AS5600 Encoder Module,12-Bit Magnetic Position Sensor Board,Header 1x4 2.54mm,3.3V VCC / I2C Bus 0 & 1,AMS AS5600 Board
+5,IMU,1,MPU6050 Module,6-DOF Accelerometer & Gyroscope Sensor,Header 1x4 2.54mm,3.3V VCC / I2C Bus 0 (0x68),InvenSense MPU6050 Module
+6,5V_Boost,1,5V Step-Up Converter,1S LiPo to 5V DC Boost Regulator,Header 1x3 2.54mm,3.7V In -> 5.0V Out,Generic 5V Boost Converter
+7,1s_BAT,1,1S LiPo / 18650 Battery,3.7V High Discharge Battery,2-Pin Terminal Connector,3.7V Nominal,1S LiPo or 18650 Cell
+8,PCB,1,MBt2 Carrier PCB,2-Layer Custom ESP32 Carrier Printed Circuit Board,100mm x 50mm FR4 1.6mm,12V Max Power Rail,JLCPCB / PCBWay
+9,CHASSIS,1,Multiboard Bot 3D Frame,3D Printed Modular Multiboard Tiles & Brackets,3D Print STL/Tinkercad,N/A,Tinkercad Multiboard Bot

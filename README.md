@@ -75,9 +75,21 @@ The web application provides a single-page dashboard uniting all diagnostic & tu
 
 ---
 
+## 🧊 3D Mechanical Design & CAD Model
+
+The robot chassis is built using a modular, 3D-printable **Multiboard System** (hexagonal grid tiles, corner mounts, motor brackets, and wheels):
+
+👉 **[View & Edit Multiboard Bot on Tinkercad](https://www.tinkercad.com/things/8piVGKb7lwG-multiboard-bot-aka-multibot)**
+
+- **Chassis Structure:** Modular 3D printed Multiboard hex tiles providing high structural rigidity and customizable component mounting.
+- **Motor Mounts:** Rigid side-rail brackets housing the BLDC motors and AS5600 magnetic encoders.
+- **Component Enclosure:** Internal mounting bays for ESP32 DevKit V1, SimpleFOC Mini drivers, 1S LiPo/18650 battery, and 5V Boost converter.
+
+---
+
 ## 🔖 Version History
 
 | Tag / Milestone | Description |
 |-----------------|-------------|
 | `v1.0-single-core` | Legacy single-core implementation running all tasks in `loop()` on Core 1. |
-| `v2.0-dual-core-unified` | **Current State:** FreeRTOS Dual-Core architecture, Bus 0 I2C Mutex, 100Hz Synchronized Cascaded Dual-Loop PID, Bluepad32 Bluetooth Gamepad, Auto-Balancing, and Unified Tuning Dashboard. |
+| `v2.0-dual-core-unified` | **Current State:** FreeRTOS Dual-Core architecture, Bus 0 I2C Mutex, 100Hz Synchronized Cascaded Dual-Loop PID, Bluepad32 Bluetooth Gamepad, Auto-Balancing, 9V Torque Headroom, and Unified Tuning Dashboard. |
